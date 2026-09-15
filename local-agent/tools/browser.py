@@ -133,6 +133,68 @@ def new_tab() -> str:
     return "Opened a new browser tab."
 
 
+def read_webpage(url: str, max_chars: int = 4000) -> dict[str, Any]:
+    """Fetch a webpage via HTTP GET and extract its readable plain text."""
+    safe_url = _validate_url(url)
+    try:
+        import httpx
+    except ImportError:
+        httpx = None
+
+    html_content = ""
+    if httpx is not None:
+        try:
+            with httpx.Client(timeout=15.0, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as client:
+                resp = client.get(safe_url)
+                resp.raise_for_status()
+                html_content = resp.text
+        except Exception as e:
+            raise ToolError(f"HTTP request failed: {e}", "network_error") from e
+    else:
+        # Fallback to urllib standard library
+        try:
+            import urllib.request
+            req = urllib.request.Request(safe_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                html_content = resp.read().decode("utf-8", errors="replace")
+        except Exception as e:
+            raise ToolError(f"Failed to fetch webpage: {e}", "network_error") from e
+
+    # Parse and extract text using BeautifulSoup or regex fallback
+    title = ""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html_content, "html.parser")
+        if soup.title and soup.title.string:
+            title = soup.title.string.strip()
+        for element in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+            element.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+    except ImportError:
+        import re
+        # Basic regex tag stripper
+        title_match = re.search(r"<title>(.*?)</title>", html_content, re.IGNORECASE | re.DOTALL)
+        if title_match:
+            title = title_match.group(1).strip()
+        clean = re.sub(r"<(script|style|nav|footer|header)[^>]*>.*?</\1>", " ", html_content, flags=re.IGNORECASE | re.DOTALL)
+        clean = re.sub(r"<[^>]+>", " ", clean)
+        text = " ".join(clean.split())
+
+    limit = max(500, min(max_chars, 20000))
+    truncated = False
+    if len(text) > limit:
+        text = text[:limit] + f"... [truncated: {len(text) - limit} characters omitted]"
+        truncated = True
+
+    return {
+        "result": text or "(page had no readable text)",
+        "url": safe_url,
+        "title": title,
+        "chars": len(text),
+        "truncated": truncated,
+    }
+
+
 def close_tab() -> str:
     """Close the current browser tab."""
     if not _focus_browser_window():
@@ -197,6 +259,22 @@ TOOLS = [
         level=Level.MODERATE,
         timeout=15.0,
         confirm_template="close the current browser tab",
+        category="browser",
+    ),
+    Tool(
+        name="read_webpage",
+        description="Fetch a URL and extract its readable text content (does not open GUI browser).",
+        parameters={
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Web address to read"},
+                "max_chars": {"type": "integer", "description": "Max characters to return", "default": 4000},
+            },
+            "required": ["url"],
+        },
+        handler=read_webpage,
+        level=Level.SAFE,
+        timeout=20.0,
         category="browser",
     ),
 ]

@@ -199,6 +199,7 @@ class OllamaClient:
         num_ctx: int = 4096,
         keep_alive: str = "5m",
         think: bool = False,
+        temperature: float = 0.3,
     ) -> None:
         self.host = host.rstrip("/")
         self.model = model
@@ -207,6 +208,7 @@ class OllamaClient:
         self.num_ctx = num_ctx
         self.keep_alive = keep_alive
         self.think = think
+        self.temperature = temperature
         self._cancel = threading.Event()
 
     # -- cancellation ------------------------------------------------------
@@ -356,10 +358,11 @@ class OllamaClient:
         self,
         messages: Sequence[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
-        temperature: float = 0.3,
+        temperature: float | None = None,
     ) -> ChatResponse:
         """Blocking chat completion with retries on transient failure."""
-        payload = self._build_payload(messages, tools, temperature, stream=False)
+        temp = self.temperature if temperature is None else temperature
+        payload = self._build_payload(messages, tools, temp, stream=False)
         last_exc: Exception | None = None
 
         for attempt in range(self.max_retries + 1):
@@ -404,7 +407,7 @@ class OllamaClient:
         self,
         messages: Sequence[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
-        temperature: float = 0.3,
+        temperature: float | None = None,
         on_token: Callable[[str], None] | None = None,
     ) -> ChatResponse:
         """Streaming chat.
@@ -413,7 +416,8 @@ class OllamaClient:
         the fully assembled response is returned. Honours :meth:`cancel`, which
         stops reading and returns whatever text was produced so far.
         """
-        payload = self._build_payload(messages, tools, temperature, stream=True)
+        temp = self.temperature if temperature is None else temperature
+        payload = self._build_payload(messages, tools, temp, stream=True)
         self.reset_cancel()
 
         content_parts: list[str] = []

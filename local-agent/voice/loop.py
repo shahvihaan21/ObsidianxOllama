@@ -51,6 +51,46 @@ class VoiceLoop:
         self.is_running = False
         self.tts.stop()
 
+    def _record_audio(self) -> str | None:
+        """Record audio from default microphone to a temporary WAV file."""
+        try:
+            import tempfile
+            import numpy as np
+            import sounddevice as sd
+            from scipy.io import wavfile
+        except ImportError:
+            try:
+                import tempfile
+                import wave
+                import sounddevice as sd
+                sample_rate = 16000
+                duration = 3.0
+                recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="int16")
+                sd.wait()
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                    wf = wave.open(tf.name, "wb")
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(sample_rate)
+                    wf.writeframes(recording.tobytes())
+                    wf.close()
+                    return tf.name
+            except Exception as e:
+                log.warning("Microphone recording unavailable: %s", e)
+                return None
+
+        sample_rate = 16000
+        duration = 3.0
+        try:
+            recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="int16")
+            sd.wait()
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                wavfile.write(tf.name, sample_rate, recording)
+                return tf.name
+        except Exception as e:
+            log.warning("Failed recording audio: %s", e)
+            return None
+
     def _on_ptt_pressed(self):
         """Handle PTT key press."""
         # 1. Interrupt any ongoing TTS
@@ -58,33 +98,33 @@ class VoiceLoop:
             log.info("Interrupting TTS.")
             self.tts.stop()
             return
-        
+
         if self.is_recording:
             return
 
         self.is_recording = True
         self.agent.on_event("LISTENING", {})
         log.info("Listening...")
-        
-        # In a real implementation, we would record from microphone here.
-        # For now, we simulate recording and STT.
-        # audio_file = record_audio_until_key_release(self._ptt_key)
-        
-        time.sleep(1) # Simulated recording duration
+
+        audio_file = self._record_audio()
         log.info("Recording finished. Transcribing...")
-        
+
         self.agent.on_event("THINKING", {})
-        # text = self.stt.transcribe(audio_file)
-        text = "This is a simulated transcription."
-        
+        text = ""
+        if audio_file:
+            try:
+                text = self.stt.transcribe(audio_file)
+            except Exception as e:
+                log.error("STT transcription error: %s", e)
+
         self.is_recording = False
-        
-        if text:
+
+        if text and text.strip():
             log.info("User said: %s", text)
             response = self.agent.run(text)
-            
+
             self.agent.on_event("SPEAKING", {})
             log.info("Agent said: %s", response)
             self.tts.speak(response)
-            
-            self.agent.on_event("IDLE", {})
+
+        self.agent.on_event("IDLE", {})

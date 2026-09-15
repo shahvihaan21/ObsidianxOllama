@@ -14,7 +14,7 @@ class MockOllamaClient:
     def __init__(self, host, model):
         pass
     
-    def chat(self, messages, tools=None):
+    def chat(self, messages, tools=None, temperature=None):
         from agent.ollama_client import ChatResponse, ChatMessage, ToolCall
         last_msg = messages[-1].content.lower()
         all_msgs = " ".join(m.content.lower() for m in messages)

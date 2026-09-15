@@ -179,6 +179,19 @@ def list_allowed_commands() -> dict[str, Any]:
     }
 
 
+def run_powershell(script: str) -> dict[str, Any]:
+    """Arbitrary PowerShell execution is permanently blocked for security.
+
+    This function exists as an explicit security boundary to catch attempts to run
+    arbitrary PowerShell scripts, evaluate them against permission policies, and refuse
+    execution safely.
+    """
+    raise CommandNotAllowed(
+        "Direct execution of arbitrary PowerShell scripts is permanently blocked. "
+        "Use run_safe_command with allow-listed commands instead."
+    )
+
+
 TOOLS = [
     Tool(
         name="run_safe_command",
@@ -206,6 +219,21 @@ TOOLS = [
         level=Level.MODERATE,
         timeout=70.0,
         confirm_template="run the command '{command}' and show its output",
+        category="system",
+    ),
+    Tool(
+        name="run_powershell",
+        description="Run a powershell script. ALWAYS dangerous and strictly blocked by policy.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "script": {"type": "string", "description": "PowerShell script or command to run"},
+            },
+            "required": ["script"],
+        },
+        handler=run_powershell,
+        level=Level.DANGEROUS,
+        confirm_template="run PowerShell script: {script}",
         category="system",
     ),
     Tool(
