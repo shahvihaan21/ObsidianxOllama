@@ -22,3 +22,29 @@ htmlcov/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Virtual environments
+assist/
+.venv/
+venv/
+
+# Python cache & bytecode
+__pycache__/
+*.pyc
+
+# Testing
+.pytest_cache/
+
+# Voice recordings
+*.wav
+*.mp3
+
+# Secrets / local overrides
+.env
+
+# Local logs and scratch output
+logs/
+
+# Never commit the contents of a local Obsidian vault
+vault/
+

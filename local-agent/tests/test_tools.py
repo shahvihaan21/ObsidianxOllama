@@ -1,130 +1,106 @@
-"""Unit and integration tests for tools and configuration."""
+"""Tool tests: app aliases, safe failures, and the Google search URL.
 
-import os
-import tempfile
-from pathlib import Path
+No app is launched, no browser is opened and nothing is installed.
+"""
+
 import pytest
 
-from agent.config import Config
-from agent.loop import AgentLoop
-from agent.ollama_client import ChatMessage, ToolCall
-from agent.permissions import PermissionManager
-from tools.registry import build_registry, Level
+import tools
+from tools import (
+    APP_ALIASES,
+    Tools,
+    google_search,
+    is_known_app,
+    normalize_app_name,
+    open_app,
+    resolve_app,
+)
 
 
-class FakeClient:
-    def __init__(self):
-        self.calls = []
-
-    def chat(self, messages, tools=None, temperature=None):
-        self.calls.append((messages, tools, temperature))
-        return type("Resp", (), {"message": ChatMessage.assistant("Done")})()
-
-
-def test_config_defaults_and_env():
-    config = Config.load()
-    assert config.ollama.host == "http://127.0.0.1:11434"
-    assert config.ollama.model == "qwen3:1.7b"
-    assert config.agent.max_history_messages == 24
-    assert config.agent.max_context_chars == 24000
-    assert config.agent.temperature == 0.3
+@pytest.fixture
+def launcher(monkeypatch):
+    """Capture launches instead of starting processes."""
+    launched = []
+    monkeypatch.setattr(tools, "_launch_command", launched.append)
+    monkeypatch.setattr(tools, "_find_executable", lambda executable: f"C:/fake/{executable}")
+    return launched
 
 
-def test_history_and_context_trimming():
-    config = Config.load()
-    config.agent.max_history_messages = 4
-    config.agent.max_context_chars = 100
-
-    client = FakeClient()
-    registry = build_registry()
-    perms = PermissionManager(config=config, registry=registry)
-    loop = AgentLoop(config=config, client=client, registry=registry, permissions=perms)
-
-    loop.history = [
-        ChatMessage.system("System prompt."),
-        ChatMessage.user("A" * 50),
-        ChatMessage.assistant("B" * 50),
-        ChatMessage.user("C" * 50),
-        ChatMessage.assistant("D" * 50),
-    ]
-
-    loop._enforce_limits()
-    # Ensure system prompt is preserved
-    assert loop.history[0].role == "system"
-    # Ensure count limit and char limit are respected
-    assert len(loop.history) <= 4
-    total_chars = sum(len(m.content) for m in loop.history)
-    assert total_chars <= 150  # within bounded range
+def test_aliases_resolve_to_executables():
+    assert resolve_app("chrome") == ("chrome.exe", [])
+    assert resolve_app("Chrome.EXE") == ("chrome.exe", [])
+    assert resolve_app("  calculator  ") == ("calc.exe", [])
+    assert resolve_app("calc") == ("calc.exe", [])
+    assert resolve_app("vs code") == ("code.cmd", [])
+    assert resolve_app("vscode") == ("code.cmd", [])
+    assert resolve_app("notepad") == ("notepad.exe", [])
+    assert resolve_app("explorer") == ("explorer.exe", [])
+    assert normalize_app_name(" VS Code ") == "vs code"
+    assert is_known_app("Chrome")
+    assert not is_known_app("definitely-not-an-app")
 
 
-def test_filesystem_tools():
-    registry = build_registry()
-    assert registry.has("read_file")
-    assert registry.has("write_file")
-    assert registry.has("list_files")
-    assert registry.has("delete_file")
-
-    with tempfile.TemporaryDirectory() as td:
-        test_file = Path(td) / "test.txt"
-        
-        # Test write
-        res_write = registry.execute("write_file", {"path": str(test_file), "content": "hello obsidian"})
-        assert res_write.success
-        assert test_file.exists()
-
-        # Test read
-        res_read = registry.execute("read_file", {"path": str(test_file)})
-        assert res_read.success
-        assert "hello obsidian" in res_read.result
-
-        # Test list
-        res_list = registry.execute("list_files", {"path": td})
-        assert res_list.success
-        assert "test.txt" in res_list.result
-
-        # Test delete
-        res_del = registry.execute("delete_file", {"path": str(test_file)})
-        assert res_del.success
-        assert not test_file.exists()
+def test_shells_are_not_launchable():
+    for name in ("cmd", "command prompt", "powershell", "terminal", "windows terminal"):
+        assert name not in APP_ALIASES
+        assert not is_known_app(name)
 
 
-def test_obsidian_tools():
-    registry = build_registry()
-    assert registry.has("search_memory")
-    assert registry.has("read_obsidian_note")
-    assert registry.has("create_obsidian_note")
-    assert registry.has("append_obsidian_note")
-
-    with tempfile.TemporaryDirectory() as td:
-        os.environ["LOCALAGENT_VAULT"] = td
-        
-        # Create note
-        res_create = registry.execute("create_obsidian_note", {"name": "project.md", "content": "# Project Roadmap"})
-        assert res_create.success
-
-        # Read note
-        res_read = registry.execute("read_obsidian_note", {"name": "project.md"})
-        assert res_read.success
-        assert "Project Roadmap" in res_read.result
-
-        # Append note
-        res_append = registry.execute("append_obsidian_note", {"name": "project.md", "content": "- Milestone 1"})
-        assert res_append.success
-
-        # Read appended note
-        res_read2 = registry.execute("read_obsidian_note", {"name": "project.md"})
-        assert "- Milestone 1" in res_read2.result
-
-        # Search memory
-        res_search = registry.execute("search_memory", {"query": "Milestone"})
-        assert res_search.success
-        assert "project.md" in res_search.result
+def test_open_app_launches_the_expected_command(launcher):
+    assert open_app("chrome") == "Opening Chrome."
+    assert launcher == [["C:/fake/chrome.exe"]]
 
 
-def test_browser_tools():
-    registry = build_registry()
-    assert registry.has("open_url")
-    assert registry.has("search_web")
-    assert registry.has("new_tab")
-    assert registry.has("close_tab")
-    assert registry.has("read_webpage")
+def test_unknown_app_fails_safely(launcher):
+    assert open_app("definitely-not-an-app") == "I couldn't find definitely-not-an-app."
+    assert launcher == []
+
+
+def test_missing_executable_fails_safely(monkeypatch, launcher):
+    monkeypatch.setattr(tools, "_find_executable", lambda executable: None)
+    assert open_app("spotify") == "I couldn't find Spotify."
+    assert launcher == []
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "notepad; del /f /q C:\\*",
+        "chrome && shutdown /s",
+        "chrome | powershell -c whoami",
+        "..\\..\\evil.exe",
+        "C:\\Windows\\System32\\cmd.exe",
+        "powershell -EncodedCommand AAA",
+    ],
+)
+def test_no_arbitrary_shell_execution(hostile, launcher):
+    result = open_app(hostile)
+    assert result.startswith("I couldn't find")
+    assert launcher == []
+
+
+def test_google_search_opens_the_expected_url(monkeypatch):
+    opened = []
+
+    def fake_open(url, **kwargs):
+        opened.append((url, kwargs))
+        return True
+
+    monkeypatch.setattr(tools.webbrowser, "open", fake_open)
+    assert google_search("Python internships") == "Opening Google search."
+    assert opened[0][0] == "https://www.google.com/search?q=Python+internships"
+    assert opened[0][1] == {"new": 2, "autoraise": True}
+
+
+def test_google_search_encodes_special_characters(monkeypatch):
+    opened = []
+    monkeypatch.setattr(tools.webbrowser, "open", lambda url, **kwargs: opened.append(url) or True)
+    google_search("ROCE & ROCE ratio")
+    assert opened[0] == "https://www.google.com/search?q=ROCE+%26+ROCE+ratio"
+
+
+def test_tools_wrapper_reuses_the_same_functions(launcher):
+    toolset = Tools()
+    assert toolset.is_known_app("notepad")
+    assert toolset.open_app("notepad") == "Opening Notepad."
+    assert launcher == [["C:/fake/notepad.exe"]]

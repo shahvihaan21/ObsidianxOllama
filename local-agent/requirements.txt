@@ -1,38 +1,15 @@
-# Local Agent - dependencies
+# Local Assistant - dependencies
 #
-# Design rules for this machine (i3-1215U / 8 GB RAM / Intel UHD / no CUDA):
-#   * CPU wheels only -- no torch, no CUDA, no onnxruntime-gpu
-#   * no LangChain / LlamaIndex / CrewAI / AutoGen
-#   * no vector database
-#   * the agent CORE runs on the standard library alone;
-#     the packages below are only needed for voice and computer control.
-#
-# Core agent (agent/, tools/, memory/) needs NOTHING from this file.
+# main.py, core.py, ollama.py, tools.py and obsidian.py use the standard library
+# ONLY. Everything below is needed for voice, plus pytest for the tests.
 
-# --- Windows input / screen control ---------------------------------------
-pyautogui>=0.9.54
-pygetwindow>=0.0.9
-pyperclip>=1.8.2
-
-# --- Web tools ------------------------------------------------------------
-httpx>=0.27
-beautifulsoup4>=4.12
-lxml>=5.2
-
-# --- Voice: speech to text (CPU) -----------------------------------------
-# faster-whisper -> ctranslate2 (CPU). No torch required.
+# --- Speech to text (faster-whisper -> CPU, no torch) ---------------------
 faster-whisper>=1.0.3
 sounddevice>=0.4.6
-numpy>=1.26,<2.3
+numpy>=1.26
 
-# --- Voice: text to speech ------------------------------------------------
-# Windows SAPI5 is used by default via stdlib comtypes/ctypes-free path.
-# pyttsx3 is a thin, pure-python wrapper over SAPI5 on Windows.
+# --- Text to speech (Windows SAPI5 via pyttsx3) ---------------------------
 pyttsx3>=2.90
 
-# --- Optional: global push-to-talk hotkey ---------------------------------
-keyboard>=0.13.5
-
-# --- Testing --------------------------------------------------------------
+# --- Tests ---------------------------------------------------------------
 pytest>=8.0
-pytest-asyncio>=0.23
