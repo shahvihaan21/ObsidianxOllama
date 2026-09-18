@@ -1,7 +1,12 @@
-# Local Assistant - dependencies
+# Local Assistant Backend - dependencies
 #
-# main.py, core.py, ollama.py, tools.py and obsidian.py use the standard library
-# ONLY. Everything below is needed for voice, plus pytest for the tests.
+# core.py, ollama.py, tools.py, obsidian.py, commands.py and voice.py use the
+# standard library ONLY except where noted. Everything below is for voice, the
+# FastAPI server, and tests.
+
+# --- Web API ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
 
 # --- Speech to text (faster-whisper -> CPU, no torch) ---------------------
 faster-whisper>=1.0.3

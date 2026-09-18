@@ -1,4 +1,4 @@
-"""Obsidian vault access: search, read, create, append.
+﻿"""Obsidian vault access: search, read, create, append.
 
 The configured vault is the security boundary. Every requested path is resolved
 on the real filesystem and checked against the vault before anything is read or
@@ -175,6 +175,22 @@ class Obsidian:
     def exists(self, note: str) -> bool:
         return self.resolve(note).is_file()
 
+    def list_notes(self, limit: int = 50) -> list[str]:
+        """Vault-relative paths of every markdown note, sorted.
+
+        Walks the vault but keeps only the names, so nothing large is held in
+        memory.
+        """
+        vault = self._require_vault()
+        notes: list[str] = []
+        for root, dirs, files in os.walk(vault):
+            dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+            for filename in sorted(files):
+                if filename.lower().endswith(".md"):
+                    notes.append((Path(root) / filename).relative_to(vault).as_posix())
+        notes.sort(key=str.lower)
+        return notes[: max(1, int(limit))]
+
     # -- write ----------------------------------------------------------
 
     def create(self, note: str, content: str = "") -> str:
@@ -204,6 +220,15 @@ class Obsidian:
             handle.write(f"{separator}{body}\n")
         relative = path.relative_to(vault).as_posix()
         return f'Appended to "{relative}".'
+
+
+def format_note_list(notes: list[str]) -> str:
+    """Render the vault listing for the console."""
+    if not notes:
+        return "No notes found in your Obsidian vault."
+    lines = [f"You have {len(notes)} note(s):"]
+    lines.extend(f"- {note}" for note in notes)
+    return "\n".join(lines)
 
 
 def format_results(results: list[dict[str, str]]) -> str:

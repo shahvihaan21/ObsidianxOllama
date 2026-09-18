@@ -1,8 +1,9 @@
-﻿# Virtual environments
+# Virtual environments
 venv/
 .venv/
 env/
 ENV/
+assist/
 
 # Python cache & bytecode
 __pycache__/
@@ -23,18 +24,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Virtual environments
-assist/
-.venv/
-venv/
-
-# Python cache & bytecode
-__pycache__/
-*.pyc
-
-# Testing
-.pytest_cache/
-
 # Voice recordings
 *.wav
 *.mp3
@@ -47,4 +36,11 @@ logs/
 
 # Never commit the contents of a local Obsidian vault
 vault/
+
+# Frontend
+node_modules/
+dist/
+
+# Environment files
+.env
 

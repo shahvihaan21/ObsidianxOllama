@@ -1,101 +1,82 @@
-# Local Assistant (Ollama + Obsidian)
+# ObsidianxOllama
 
-A small, fully local Windows assistant. It answers questions with Ollama, launches
-apps, opens Google searches, and reads and writes your Obsidian vault. Voice input
-and spoken replies are optional and run entirely on your machine.
+A fully local Windows assistant. It answers questions with Ollama, launches apps,
+opens Google searches, and reads and writes your Obsidian vault. Voice input and
+spoken replies are optional and run entirely on your machine.
+
+```
+ObsidianxOllama/
+├── frontend    → React UI
+└── backend     → local assistant engine
+```
 
 There is no cloud service, no API key, no vector database and no agent framework.
-The whole assistant is six flat files under `local-agent/`:
+The backend is six flat files. The frontend is a simple React interface.
 
-| File | Responsibility |
-| --- | --- |
-| `main.py` | Loads config, prints status, runs the interaction loop |
-| `core.py` | Command router: obvious commands go straight to a tool, everything else goes to Ollama |
-| `ollama.py` | Ollama HTTP client built on `urllib` (no SDK, no requests) |
-| `tools.py` | Controlled app launching and Google search |
-| `obsidian.py` | Vault search, read, create, append (vault is the security boundary) |
-| `voice.py` | Push-to-talk recording with silence detection, faster-whisper STT, pyttsx3 TTS |
+## Quick start
 
-## Requirements
-
-- Windows 10 or 11
-- Python 3.10 or newer
-- [Ollama](https://ollama.com) installed and running
-- Optional: a working microphone and speakers for voice
-
-The core (questions, app launching, Google search, Obsidian) uses the Python
-standard library only. Everything in `requirements.txt` is for voice and tests.
-
-## Installation
+### Backend
 
 ```bat
+cd backend
+
 python -m venv assist
 assist\Scripts\activate
 
-cd local-agent
 pip install -r requirements.txt
 
 ollama pull qwen3:1.7b
 
-python main.py
+python -m uvicorn app.main:app --reload
 ```
 
-## Ollama setup
+The API is available at `http://127.0.0.1:8000`.
 
-Start Ollama (`ollama serve`, or launch the Ollama app) and confirm it answers:
+### Frontend
 
 ```bat
-curl http://127.0.0.1:11434/api/tags
+cd frontend
+
+npm install
+npm run dev
 ```
 
-If Ollama is not running the assistant still starts; it simply replies
-`Ollama is not running. Start Ollama and try again.`
+Open `http://localhost:5173` in your browser.
 
-## Model setup
+## Configuration
 
-The default model is `qwen3:1.7b` (small enough for a CPU-only laptop):
+Edit `backend/config.json`:
+
+- **Ollama**: set `ollama.host` and `ollama.model` if needed
+- **Obsidian**: set `obsidian.vault` to your vault folder path
+- **Voice**: leave `voice.enabled` true to allow push-to-talk
+
+## What it can do
+
+- Answer questions with Ollama
+- Open apps (Chrome, Edge, Notepad, VS Code, etc.)
+- Search Google
+- Search, read, create, and append to Obsidian notes
+- Voice input with silence detection and STT
+- Spoken responses via TTS
+
+## Tests
 
 ```bat
-ollama pull qwen3:1.7b
+cd backend
+python -m pytest
 ```
 
-Change `ollama.model` in `local-agent/config.json` to use another installed model.
-If the model is missing, the assistant tells you the exact `ollama pull` command
-to run instead of crashing.
+All tests pass without requiring Ollama, a microphone, or a real vault.
 
-## Obsidian setup
+## Security
 
-Point `obsidian.vault` in `local-agent/config.json` at your vault folder:
+- Applications come from a fixed alias table
+- Websites and folders are fixed lists
+- Obsidian paths are confined to the vault (path traversal protection)
+- No shell commands, no arbitrary execution
+- Creating and appending to notes always requires confirmation
 
-```json
-"obsidian": {
-    "vault": "C:\\Users\\You\\Documents\\MyVault",
-    "max_results": 8
-}
-```
-
-Leave it empty to run without Obsidian; note commands will reply
-`Obsidian vault is not configured.` Everything else keeps working.
-
-## Voice setup
-
-Voice is optional and degrades gracefully. Install the requirements, then:
-
-- Leave `voice.enabled` at `true` to allow push-to-talk.
-- `voice.silence_seconds` (default `1.0`) is how long you must stop talking before
-  recording ends. Recording always waits for speech first, and
-  `voice.max_record_seconds` (default `12`) is only a safety cap.
-- `voice.silence_threshold` (default `0.012`) is the loudness that counts as speech.
-  Raise it if background noise keeps the microphone open.
-- `voice.stt_model` (default `tiny`) is the faster-whisper model; it is downloaded
-  once on first use and then kept in memory.
-- `tts.enabled` toggles spoken replies. `tts.voice` is a SAPI5 voice id (empty means
-  the Windows default) and `tts.rate` is words per minute.
-
-If a package, the microphone or the speech engine is missing, the status line shows
-`Voice: unavailable (<reason>)` and text mode keeps working.
-
-## Running
 
 ```bat
 cd local-agent
@@ -119,6 +100,64 @@ Assistant ready.
 Type a command or press Enter for voice.
 Type 'quit' to exit.
 ```
+
+## Commands
+
+Every recognised phrase lives in **one file**: `local-agent/commands.py`. It only
+describes *what a sentence means*; nothing in it launches an app, opens a file,
+writes a note or calls the model.
+
+```text
+typed text  ---+
+               |        (voice: Enter -> record -> STT -> text)
+               v
+      commands.recognize()      <- commands.py (pure, deterministic)
+               v
+            core.py             <- decides what to do, asks before writing
+               v
+   tools.py / obsidian.py / ollama.py
+               v
+            response
+```
+
+Typed input and speech both go through `core.Assistant.handle()`, so voice and
+text share the same router, the same vocabulary and the same confirmation rules.
+
+* Obvious commands are recognised without the model: apps, websites, folders,
+  web search, note search/read/create/append/list, help, status, model info,
+  voice mode, repeat, cancel, diagnostics.
+* Anything that is not a confident command is sent to Ollama as a normal
+  question. There is no attempt to force every sentence into a command.
+
+### Adding a phrase
+
+| What you want | Where to edit |
+| --- | --- |
+| A new fixed sentence | `COMMANDS["INTENT"]` in `commands.py` |
+| A sentence with a variable part | `COMMAND_PATTERNS["INTENT"]` (groups `q`, `name`, `note`, `content`) |
+| A new application | `APP_ALIASES` in `tools.py` -- all "open/launch/start/run/bring up ..." phrasings come for free |
+| A new website | `WEBSITES` in `tools.py` |
+| A new folder | `FOLDERS` in `tools.py` |
+
+Example: to make `fire up notepad` work, add `"fire up"` to `APP_VERBS` in
+`commands.py`. To add the Telegram app, add `"telegram": ("telegram.exe", [])`
+to `APP_ALIASES` in `tools.py`; the phrase `open telegram` then works in every
+verb form.
+
+### Which commands ask first
+
+`create an Obsidian note ...` and `append this to my ... note ...` always ask
+`[y/N]` before writing. Everything else -- questions, apps, websites, folders,
+web search, note search, note read, note list, help, status -- runs immediately.
+
+### Safety rules built into the vocabulary
+
+* Applications come from a fixed alias table; a name that is not in it is never
+  passed to the operating system.
+* Websites and folders are fixed lists; user text never becomes a URL or a path.
+* Shells and terminals (`open powershell`, `open cmd`, ...) are recognised so the
+  assistant can answer, but they are deliberately never launched.
+* Obsidian paths are confined to the vault, so `../../test.txt` is rejected.
 
 ## Text commands
 
@@ -183,8 +222,10 @@ so a missing or broken file never stops startup.
 ## Known limitations
 
 - Replies are spoken only for voice input; typed answers are printed.
-- App launching is limited to the alias table in `tools.py`. There is no shell, so
-  arbitrary commands cannot be run (by you or by the model).
+- App launching is limited to the alias table in `tools.py`, websites to the
+  `WEBSITES` table and folders to the `FOLDERS` table. There is no shell, so
+  arbitrary commands cannot be run (by you or by the model). Shell requests such
+  as "open powershell" are recognised and politely refused.
 - Google search opens your default browser; it does not scrape or read pages.
 - Vault search is a simple filename + text match over `.md` files. No index, no
   embeddings, no "semantic memory".

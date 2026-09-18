@@ -1,4 +1,4 @@
-"""Make the local-agent package importable when pytest is run from anywhere."""
+﻿"""Make the local-agent package importable when pytest is run from anywhere."""
 
 import sys
 from pathlib import Path

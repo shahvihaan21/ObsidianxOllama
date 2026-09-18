@@ -1,12 +1,12 @@
-"""Tool tests: app aliases, safe failures, and the Google search URL.
+﻿"""Tool tests: app aliases, safe failures, and the Google search URL.
 
 No app is launched, no browser is opened and nothing is installed.
 """
 
 import pytest
 
-import tools
-from tools import (
+from app import tools
+from app.tools import (
     APP_ALIASES,
     Tools,
     google_search,
@@ -104,3 +104,45 @@ def test_tools_wrapper_reuses_the_same_functions(launcher):
     assert toolset.is_known_app("notepad")
     assert toolset.open_app("notepad") == "Opening Notepad."
     assert launcher == [["C:/fake/notepad.exe"]]
+
+
+# -- websites and folders (fixed tables, never user text) ---------------
+
+
+def test_websites_open_fixed_urls(monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        tools.webbrowser, "open", lambda url, **kwargs: opened.append(url) or True
+    )
+    assert tools.open_website("google") == "Opening Google."
+    assert tools.open_website("Google Drive") == "Opening Google Drive."
+    assert opened == ["https://www.google.com", "https://drive.google.com"]
+
+
+def test_unknown_website_fails_safely(monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        tools.webbrowser, "open", lambda url, **kwargs: opened.append(url) or True
+    )
+    assert "don't have a website" in tools.open_website("http://example.com")
+    assert opened == []
+
+
+def test_folders_resolve_inside_the_home_folder(monkeypatch):
+    opened = []
+    monkeypatch.setattr(tools, "_open_uri", opened.append)
+    monkeypatch.setattr(tools.os.path, "isdir", lambda path: True)
+    assert tools.open_folder("downloads") == "Opening your Downloads folder."
+    assert len(opened) == 1
+    assert opened[0].endswith("Downloads")
+
+
+def test_unknown_folder_fails_safely():
+    assert "couldn't find a folder" in tools.open_folder("nowhere")
+
+
+def test_new_aliases_are_present():
+    assert resolve_app("telegram") == ("telegram.exe", [])
+    assert resolve_app("github desktop") == ("github.exe", [])
+    assert "google" in tools.WEBSITES
+    assert "downloads" in tools.FOLDERS

@@ -1,4 +1,4 @@
-"""Local voice: push-to-talk recording with silence detection, STT and TTS.
+﻿"""Local voice: push-to-talk recording with silence detection, STT and TTS.
 
 Recording is silence-based. It waits for speech, keeps recording while you
 talk, and stops after ``silence_seconds`` of quiet. ``max_record_seconds`` is

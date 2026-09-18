@@ -1,4 +1,4 @@
-"""Controlled Windows tools: launching apps, Google search, Obsidian notes.
+﻿"""Controlled Windows tools: launching apps, Google search, Obsidian notes.
 
 Nothing here accepts a shell string. Application launching is limited to the
 alias table below, so text from the user or the model can never reach a command
@@ -12,8 +12,15 @@ import shutil
 import subprocess
 import urllib.parse
 import webbrowser
+from pathlib import Path
 
-from obsidian import NOT_CONFIGURED, Obsidian, ObsidianError, format_results
+from .obsidian import (
+    NOT_CONFIGURED,
+    Obsidian,
+    ObsidianError,
+    format_note_list,
+    format_results,
+)
 
 GOOGLE_SEARCH_URL = "https://www.google.com/search?q={query}"
 
@@ -50,6 +57,32 @@ APP_ALIASES: dict[str, tuple[str, list[str]]] = {
     "outlook": ("outlook.exe", []),
     "whatsapp": ("whatsapp.exe", []),
     "steam": ("steam.exe", []),
+    "telegram": ("telegram.exe", []),
+    "github desktop": ("github.exe", []),
+}
+
+# Websites that can be opened. Fixed list: no user text ever becomes a URL.
+WEBSITES: dict[str, str] = {
+    "google": "https://www.google.com",
+    "youtube": "https://www.youtube.com",
+    "github": "https://github.com",
+    "gmail": "https://mail.google.com",
+    "reddit": "https://www.reddit.com",
+    "chatgpt": "https://chatgpt.com",
+    "google drive": "https://drive.google.com",
+    "google docs": "https://docs.google.com",
+}
+
+# User folders that can be opened. Fixed list: resolved from the home folder,
+# never from user text.
+FOLDERS: dict[str, str] = {
+    "downloads": "Downloads",
+    "documents": "Documents",
+    "desktop": "Desktop",
+    "pictures": "Pictures",
+    "music": "Music",
+    "videos": "Videos",
+    "home": "",
 }
 
 _DISPLAY_NAMES = {
@@ -71,6 +104,8 @@ _DISPLAY_NAMES = {
     "vscode": "VS Code",
     "visual studio code": "VS Code",
     "7-zip": "7-Zip",
+    "telegram": "Telegram",
+    "github desktop": "GitHub Desktop",
 }
 
 # Fallback install locations for apps that are usually not on PATH.
@@ -105,6 +140,11 @@ _KNOWN_PATHS: dict[str, list[str]] = {
         r"%ProgramFiles%\7-Zip\7zFM.exe",
         r"%ProgramFiles(x86)%\7-Zip\7zFM.exe",
     ],
+    "telegram.exe": [
+        r"%AppData%\Telegram Desktop\Telegram.exe",
+        r"%ProgramFiles%\Telegram Desktop\Telegram.exe",
+    ],
+    "github.exe": [r"%LocalAppData%\GitHubDesktop\github.exe"],
 }
 
 
@@ -190,6 +230,42 @@ def google_search(query: str) -> str:
     return "Opening Google search."
 
 
+def _normalize_lookup(name: str) -> str:
+    """'  Google Drive ' -> 'google drive'."""
+    return " ".join(str(name or "").strip().lower().split())
+
+
+def open_website(name: str) -> str:
+    """Open one of the fixed websites. Unknown names never reach the browser."""
+    key = _normalize_lookup(name)
+    url = WEBSITES.get(key)
+    if url is None:
+        return f"I don't have a website called {str(name or '').strip() or 'that'}."
+    if not webbrowser.open(url, new=2, autoraise=True):
+        return "I couldn't open your web browser."
+    return f"Opening {key.title()}."
+
+
+def _resolve_folder(name: str) -> str | None:
+    key = _normalize_lookup(name)
+    subfolder = FOLDERS.get(key)
+    if subfolder is None:
+        return None
+    home = Path(os.path.expanduser("~"))
+    return str(home if not subfolder else home / subfolder)
+
+
+def open_folder(name: str) -> str:
+    """Open one of the fixed user folders in File Explorer."""
+    path = _resolve_folder(name)
+    if path is None:
+        return f"I couldn't find a folder called {str(name or '').strip() or 'that'}."
+    if not os.path.isdir(path):
+        return f"I couldn't find your {_normalize_lookup(name)} folder."
+    _open_uri(path)
+    return f"Opening your {_normalize_lookup(name).title()} folder."
+
+
 class Tools:
     """The tool surface the assistant is allowed to call."""
 
@@ -203,6 +279,12 @@ class Tools:
 
     def google_search(self, query: str) -> str:
         return google_search(query)
+
+    def open_website(self, name: str) -> str:
+        return open_website(name)
+
+    def open_folder(self, name: str) -> str:
+        return open_folder(name)
 
     def is_known_app(self, name: str) -> bool:
         return is_known_app(name)
@@ -223,6 +305,12 @@ class Tools:
 
     def obsidian_exists(self, note: str) -> bool:
         return self._vault().exists(note)
+
+    def obsidian_list(self) -> str:
+        return format_note_list(self._vault().list_notes())
+
+    def obsidian_describe(self) -> str:
+        return self._vault().describe()
 
     def obsidian_path(self, note: str) -> str:
         return self._vault().note_path_for(note)

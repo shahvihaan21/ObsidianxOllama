@@ -1,8 +1,8 @@
-"""Obsidian vault tests: search, read, create, append, and the path boundary."""
+﻿"""Obsidian vault tests: search, read, create, append, and the path boundary."""
 
 import pytest
 
-from obsidian import (
+from app.obsidian import (
     NOTE_EXISTS,
     NOTE_NOT_FOUND,
     NOT_CONFIGURED,
@@ -121,8 +121,25 @@ def test_unconfigured_vault_reports_clearly():
         lambda: empty.search("x"),
         lambda: empty.read("x"),
         lambda: empty.create("x"),
+        lambda: empty.list_notes(),
     )
     for attempt in attempts:
         with pytest.raises(ObsidianError) as excinfo:
             attempt()
         assert str(excinfo.value) == NOT_CONFIGURED
+
+
+def test_list_notes(vault):
+    vault.create("Zeta", "z")
+    vault.create("Projects/Alpha", "a")
+    assert vault.list_notes() == ["Projects/Alpha.md", "Zeta.md"]
+
+
+def test_list_notes_on_an_empty_vault(vault):
+    assert vault.list_notes() == []
+
+
+def test_list_notes_respects_the_limit(vault):
+    for index in range(5):
+        vault.create(f"Note {index}", "x")
+    assert len(vault.list_notes(limit=2)) == 2

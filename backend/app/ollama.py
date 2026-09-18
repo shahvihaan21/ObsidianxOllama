@@ -1,4 +1,4 @@
-"""Minimal Ollama client built on the standard library (urllib + json only).
+﻿"""Minimal Ollama client built on the standard library (urllib + json only).
 
 No SDK, no requests, no provider abstraction. Public surface:
 
