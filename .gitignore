@@ -2,32 +2,28 @@
 venv/
 .venv/
 env/
-ENV/
 obside/
 
 # Python cache & bytecode
 __pycache__/
 *.py[cod]
-*.so
 
-# Environment secrets
+# Frontend
+node_modules/
+frontend/dist/
+
+# Local secrets / environment
 .env
 
-# Data / sessions (comment out if you want to commit history)
-data/
-
-# Testing & coverage
+# Testing
 .pytest_cache/
 .coverage
-htmlcov/
 
-# Editor settings
+# Whisper model cache
+.cache/
+
+# Editor / OS
 .vscode/
 .idea/
-
-# Operating system files
 .DS_Store
 Thumbs.db
-
-# Whisper model cache (large binary files)
-.cache/

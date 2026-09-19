@@ -1,12 +1,20 @@
 {
-    "ollama": {
-        "host": "http://127.0.0.1:11434",
-        "model": "qwen3:1.7b",
-        "timeout": 120
+    "server": {
+        "host": "127.0.0.1",
+        "port": 8765
     },
     "obsidian": {
         "vault": "",
-        "max_results": 8
+        "max_results": 8,
+        "snippet_chars": 240,
+        "trash_folder": ".trash"
+    },
+    "llm": {
+        "enabled": true,
+        "host": "http://127.0.0.1:11434",
+        "model": "qwen3:1.7b",
+        "timeout": 120,
+        "temperature": 0.2
     },
     "voice": {
         "enabled": true,
@@ -14,11 +22,15 @@
         "stt_model": "tiny",
         "silence_seconds": 1.0,
         "max_record_seconds": 12,
-        "silence_threshold": 0.012
+        "silence_threshold": 0.012,
+        "wait_for_speech_seconds": 5.0
     },
-    "tts": {
+    "research": {
         "enabled": true,
-        "voice": "",
-        "rate": 165
+        "max_queries": 3,
+        "max_sources": 5,
+        "timeout": 15,
+        "search_url": "https://html.duckduckgo.com/html/?q={query}",
+        "user_agent": "Mozilla/5.0 (compatible; ObsidianControl/1.0)"
     }
 }

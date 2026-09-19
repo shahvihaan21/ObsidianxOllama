@@ -1,20 +1,19 @@
-# Local Assistant Backend - dependencies
+# Obsidian Control — backend dependencies
 #
-# core.py, ollama.py, tools.py, obsidian.py, commands.py and voice.py use the
-# standard library ONLY except where noted. Everything below is for voice, the
-# FastAPI server, and tests.
+# app/config.py, app/commands.py, app/obsidian.py, app/llm.py, app/research.py,
+# app/router.py and app/voice.py use the standard library only. Everything
+# below is either the web API or optional voice input.
 
-# --- Web API ---
+# --- Web API + plugin bridge (WebSocket support comes from uvicorn[standard]) --
 fastapi>=0.115
 uvicorn[standard]>=0.30
 
-# --- Speech to text (faster-whisper -> CPU, no torch) ---------------------
-faster-whisper>=1.0.3
+# --- Optional: speech to text from a local microphone -------------------------
+# Without these three packages the system still runs; the microphone button
+# reports that voice input is unavailable.
 sounddevice>=0.4.6
 numpy>=1.26
+faster-whisper>=1.0.3
 
-# --- Text to speech (Windows SAPI5 via pyttsx3) ---------------------------
-pyttsx3>=2.90
-
-# --- Tests ---------------------------------------------------------------
+# --- Tests -------------------------------------------------------------------
 pytest>=8.0
