@@ -3,13 +3,18 @@ venv/
 .venv/
 env/
 ENV/
-assist/
+obside/
 
 # Python cache & bytecode
 __pycache__/
 *.py[cod]
-*.class
 *.so
+
+# Environment secrets
+.env
+
+# Data / sessions (comment out if you want to commit history)
+data/
 
 # Testing & coverage
 .pytest_cache/
@@ -24,23 +29,5 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Voice recordings
-*.wav
-*.mp3
-
-# Secrets / local overrides
-.env
-
-# Local logs and scratch output
-logs/
-
-# Never commit the contents of a local Obsidian vault
-vault/
-
-# Frontend
-node_modules/
-dist/
-
-# Environment files
-.env
-
+# Whisper model cache (large binary files)
+.cache/
